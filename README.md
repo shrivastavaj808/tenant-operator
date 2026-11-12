@@ -21,7 +21,7 @@ If someone changes or deletes any of these by hand, the operator puts them back.
 ## Roadmap
 
 - [x] Phase 0: Project setup
-- [ ] Phase 1: Tenant web app + secure container image
+- [x] Phase 1: Tenant web app + secure container image
 - [ ] Phase 2: One tenant set up by hand
 - [ ] Phase 3: `Tenant` CRD with validation
 - [ ] Phase 4: Operator handlers + drift correction
