@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-app
+  namespace: tenant-acme
+  labels:
+    app: tenant-app
+    tenant: acme
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tenant-app
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: tenant-app
+        tenant: acme
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: tenant-app:0.1.1
+          imagePullPolicy: IfNotPresent
+          ports:
+           - name: http
+             containerPort: 8080
+          envFrom:
+           - configMapRef:
+               name: tenant-config
+          resources:
+           requests:
+             cpu: 50m
+             memory: 64Mi
+           limits:
+             memory: 128Mi
+          readinessProbe:
+           httpGet:
+             path: /healthz
+             port: http
+           periodSeconds: 5
+          livenessProbe:
+           httpGet:
+             path: /healthz
+             port: http
+           initialDelaySeconds: 5
+           periodSeconds: 10
+          securityContext:
+           allowPrivilegeEscalation: false
+           capabilities:
+             drop: ["ALL"]
