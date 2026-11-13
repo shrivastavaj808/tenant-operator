@@ -36,6 +36,10 @@ spec:
           envFrom:
            - configMapRef:
                name: tenant-config
+          volumeMounts:
+          - name: secrets
+            mountPath: /etc/tenant-secrets
+            readOnly: true
           resources:
            requests:
              cpu: 50m
@@ -57,3 +61,7 @@ spec:
            allowPrivilegeEscalation: false
            capabilities:
              drop: ["ALL"]
+      volumes:
+        - name: secrets
+          secret:
+            secretName: tenant-secrets
