@@ -1,0 +1,18 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tenant-app
+  namespace: tenant-acme
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: acme.tenants.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tenant-app
+                port:
+                  name: http
