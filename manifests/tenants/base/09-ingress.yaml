@@ -2,17 +2,16 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: tenant-app
-  namespace: tenant-acme
   annotations:
     cert-manager.io/cluster-issuer: tenants-ca
 spec:
   ingressClassName: traefik
   tls:
     - hosts:
-        - acme.tenants.local
+        - TENANT.tenants.local
       secretName: tenant-app-tls
   rules:
-    - host: acme.tenants.local
+    - host: TENANT.tenants.local
       http:
         paths:
           - path: /

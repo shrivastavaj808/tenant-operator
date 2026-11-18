@@ -2,10 +2,8 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tenant-app
-  namespace: tenant-acme
   labels:
     app: tenant-app
-    tenant: acme
 spec:
   replicas: 2
   selector:
@@ -20,7 +18,6 @@ spec:
     metadata:
       labels:
         app: tenant-app
-        tenant: acme
     spec:
       securityContext:
         runAsNonRoot: true

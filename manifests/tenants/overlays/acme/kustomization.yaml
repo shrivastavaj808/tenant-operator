@@ -1,0 +1,33 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: tenant-acme
+resources:
+  - ../../base
+  - sealedsecret.yaml
+labels:
+  - pairs:
+      tenant: acme
+    includeTemplates: true
+configMapGenerator:
+  - name: tenant-config
+    literals:
+      - TENANT_NAME=acme
+patches:
+  - target:
+      kind: Ingress
+      name: tenant-app
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: acme.tenants.local
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: acme.tenants.local
+  - target:
+      kind: RoleBinding
+      name: tenant-developers
+    patch: |-
+      - op: replace
+        path: /subjects/0/name
+        value: acme-developers
+

@@ -2,7 +2,6 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: tenant-developer
-  namespace: tenant-acme
 rules:
   - apiGroups: [""]
     resources: ["pods", "pods/log", "services", "configmaps"]
@@ -15,10 +14,9 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: tenant-developers
-  namespace: tenant-acme
 subjects:
   - kind: Group
-    name: acme-developers
+    name: TENANT-developers
     apiGroup: rbac.authorization.k8s.io
 roleRef:
   kind: Role
