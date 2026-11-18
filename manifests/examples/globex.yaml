@@ -1,0 +1,6 @@
+apiVersion: platform.example.com/v1alpha1
+kind: Tenant
+metadata:
+  name: globex
+spec:
+  displayName: Globex Inc
