@@ -162,7 +162,7 @@ def build_deployment(tenant, uid, replicas):
                                 {"configMapRef": {"name": "tenant-config"}},
                             ],
                             "volumeMounts": [
-                                {"name": "secrets", "mountPath": "/etc/tenant/secrets", "readOnly": True},
+                                {"name": "secrets", "mountPath": "/etc/tenant-secrets", "readOnly": True},
                             ],
                             "resources": {
                                 "requests": {"cpu": "50m", "memory": "64Mi"},
