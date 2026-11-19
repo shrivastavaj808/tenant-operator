@@ -24,7 +24,7 @@ If someone changes or deletes any of these by hand, the operator puts them back.
 - [x] Phase 1: Tenant web app + secure container image
 - [x] Phase 2: One tenant set up by hand
 - [x] Phase 3: `Tenant` CRD with validation
-- [ ] Phase 4: Operator handlers + drift correction
+- [x] Phase 4: Operator handlers + drift correction
 - [ ] Phase 5: Status conditions, events, finalizers
 - [ ] Phase 6: Tests + CI pipeline
 - [ ] Phase 7: Helm chart, least-privilege RBAC, Argo CD
