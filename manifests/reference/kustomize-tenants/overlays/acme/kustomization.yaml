@@ -3,7 +3,6 @@ kind: Kustomization
 namespace: tenant-acme
 resources:
   - ../../base
-  - sealedsecret.yaml
 labels:
   - pairs:
       tenant: acme
