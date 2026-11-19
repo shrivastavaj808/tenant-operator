@@ -3,8 +3,9 @@
 import kopf
 from kubernetes import config, dynamic
 from kubernetes.client import api_client
+from kubernetes.dynamic.exceptions import NotFoundError
 
-from tenant_operator.resources import GROUP, VERSION, build_all
+from tenant_operator.resources import GROUP, MANAGED_BY, VERSION, build_all
 
 FIELD_MANAGER = "tenant-operator"
 client = None   
@@ -50,3 +51,28 @@ def on_update(name, uid, spec, logger, **_):
 @kopf.on.resume(GROUP, VERSION, "tenants")
 def on_resume(name, uid, spec, logger, **_):
     reconcile(name, uid, spec, logger)
+
+
+@kopf.timer(GROUP, VERSION, "tenants", interval=30, initial_delay=30)
+def on_timer(name, uid, spec, logger, **_):
+    reconcile(name, uid, spec, logger)
+
+
+@kopf.on.event(
+    "networking.k8s.io", "v1", "networkpolicies",
+    labels={"app.kubernetes.io/managed-by": MANAGED_BY},
+)
+def on_policy_event(event, logger, **_):
+    if event["type"] != "DELETED":
+        return
+    policy = event["object"]
+    tenant = policy["metadata"]["labels"]["tenant"]
+    tenants = client.resources.get(api_version=f"{GROUP}/{VERSION}", kind="Tenant")
+    try:
+        obj = tenants.get(name=tenant)
+    except NotFoundError:
+        return
+    if obj.metadata.deletionTimestamp:
+        return
+    logger.warning(f"NetworkPolicy {policy['metadata']['name']} was deleted, restoring tenant {tenant}")
+    reconcile(tenant, obj.metadata.uid, obj.to_dict()["spec"], logger)  
