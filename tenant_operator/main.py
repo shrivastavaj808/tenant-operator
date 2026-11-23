@@ -109,6 +109,27 @@ def on_resume(name, uid, spec, meta, status, body, patch, logger, **_):
 def on_timer(name, uid, spec, meta, status, body, patch, logger, **_):
     reconcile_and_report(name, uid, spec, meta, status, body, patch, logger)
 
+@kopf.on.delete(GROUP, VERSION, "tenants")
+def on_delete(name, annotations, logger, **_):
+    if annotations.get("platform.example.com/protected") == "true":
+        raise kopf.TemporaryError(
+            f"Tenant {name} is protected; remove the annotation to let the deletion finish",
+            delay=15,
+        )
+
+    ns_name = namespace_name(name)
+    namespace = client.resources.get(api_version="v1", kind="Namespace")
+    try:
+        ns = namespace.get(name-ns_name)
+    except:
+        logger.info(f"Tenant {name}: namespace {ns_name} is gone, cleanup finished")
+        return
+
+    if not ns.metadata.deletionTimestamp:
+        logger.info(f"Tenant {name}: deleting namespace {ns_name}")
+        namespace.delete(name=ns_name)
+    raise kopf.TemporaryError(f"Waiting for namespace {ns_name} to be deleted", delay=5)
+
 
 @kopf.on.event(
     "networking.k8s.io", "v1", "networkpolicies",
