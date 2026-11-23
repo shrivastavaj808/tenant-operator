@@ -25,6 +25,11 @@ PLANS = {
     },
 }
 
+PRIORITY = {
+        "small": "tenant-standard",
+        "large": "tenant-premium",
+    }
+
 def namespace_name(tenant):
     return f"tenant-{tenant}"
 
@@ -125,7 +130,7 @@ def build_configmap(tenant, uid):
     }
 
 
-def build_deployment(tenant, uid, replicas):
+def build_deployment(tenant, uid, spec):
     pod_labels = {"app": "tenant-app", "tenant": tenant}
     meta = metadata("tenant-app", tenant, uid, namespace_name(tenant))
     meta["labels"]["app"] = "tenant-app"
@@ -135,12 +140,11 @@ def build_deployment(tenant, uid, replicas):
             "port": "http",
         }
     }
-    return {
+    deployment = {
         "apiVersion": "apps/v1",
         "kind": "Deployment",
         "metadata": meta,
         "spec": {
-            "replicas": replicas,
             "selector": {"matchLabels": {"app": "tenant-app"}},
             "strategy": {"type": "RollingUpdate",
                          "rollingUpdate": {"maxUnavailable": 1, "maxSurge": 1},
@@ -152,6 +156,27 @@ def build_deployment(tenant, uid, replicas):
                         "runAsNonRoot": True,
                         "seccompProfile": {"type": "RuntimeDefault"},
                     },
+                    "priorityClassName" : PRIORITY[spec["plan"]],
+                    "initContainers" : [
+                        {
+                            "name" : "preflight",
+                            "image" : APP_IMAGE,
+                            "command" : [
+                                "python", "-c",
+                                "import os, sys; n = os.environ.get('TENANT_NAME'); "
+                                "print(f'preflight: TENANT_NAME={n}'); sys.exit(0 if n else 1)",
+                            ],
+                            "envFrom" : [{"configMapRef": {"name": "tenant-config"}}],
+                            "resources" : {
+                                "requests" : {"cpu": "10m", "memory": "32Mi"},
+                                "limits" : {"memory": "64Mi"},
+                            },
+                            "securityContext" : {
+                                "allowPrivilegeEscalation": False,
+                                "capabilities": {"drop": ["ALL"]},
+                            },
+                        }
+                    ],
                     "containers": [
                         {
                             "name": "app",
@@ -183,7 +208,9 @@ def build_deployment(tenant, uid, replicas):
             },
         },
     }
-
+    if spec["plan"] != "large":
+        deployment["spec"]["replicas"] = spec["replicas"]
+    return deployment 
 
 def build_service(tenant, uid):
     return {
@@ -270,15 +297,38 @@ def build_ingress(tenant, uid):
     }
 
 
+def build_hpa(tenant, uid, min_replicas):
+    return {
+        "apiVersion": "autoscaling/v2",
+        "kind": "HorizontalPodAutoscaler",
+        "metadata": metadata("tenant-app", tenant, uid, namespace_name(tenant)),
+        "spec": {
+            "scaleTargetRef": {"apiVersion": "apps/v1", "kind": "Deployment", "name": "tenant-app"},
+            "minReplicas": min_replicas,
+            "maxReplicas": 4,
+            "metrics": [
+                {
+                    "type": "Resource",
+                    "resource": {"name": "cpu", "target": {"type": "Utilization", "averageUtilization": 70}},
+                }
+            ],
+        },
+    }
+
+
 def build_all(tenant, uid, spec):
-    return [
+    objects = [
         build_namespace(tenant, uid),
         build_quota(tenant, uid, spec["plan"]),
         build_role(tenant, uid),
         build_role_binding(tenant, uid),
         build_configmap(tenant, uid),
-        build_deployment(tenant, uid, spec["replicas"]),
+        build_deployment(tenant, uid, spec),
         build_service(tenant, uid),
         *build_network_policy(tenant, uid),
         build_ingress(tenant, uid), 
     ]
+    if spec["plan"] == "large":
+        objects.append(build_hpa(tenant, uid, spec["replicas"]))
+    return objects
+    

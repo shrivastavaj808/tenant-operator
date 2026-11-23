@@ -35,11 +35,20 @@ def apply(obj):
         force_conflicts=True
     )
 
+def delete_if_exists(api_version, kind, name, namespace):
+    api = client.resources.get(api_version=api_version, kind=kind)
+    try:
+        api.delete(name=name, namespace=namespace)
+    except NotFoundError:
+        pass
+
 def reconcile(name, uid, spec, logger):
     objects = build_all(name, uid, spec)
     for obj in objects:
         apply(obj)
     logger.info(f"Tenant {name} reconciled: {len(objects)} objects applied")
+    if spec["plan"] != "large":
+        delete_if_exists("autoscaling/v2", "HorizontalPodAutoscaler", "tenant-app", namespace_name(name))
 
 def deployment_replicas(name, spec):
     deployments = client.resources.get(api_version="apps/v1", kind="Deployment")

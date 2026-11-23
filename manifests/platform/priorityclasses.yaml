@@ -1,0 +1,16 @@
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-standard
+value: 1000
+globalDefault: false
+description: "Pods of small-plan tenants."
+---
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: tenant-premium
+value: 2000
+globalDefault: false
+description: "Pods of large-plan tenants. Scheduled first, can preempt standard."
+
