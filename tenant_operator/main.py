@@ -1,5 +1,6 @@
 """The Tenant operator: watches Tenant objects and builds each tenant."""
 
+import logging
 from datetime import datetime, timezone
 
 import kopf
@@ -14,8 +15,9 @@ client = None
 
 
 @kopf.on.startup()
-def connect(logger, **_):
+def connect(settings, logger, **_):
     global client
+    settings.posting.level = logging.WARNING
     try:
         config.load_incluster_config()
     except config.ConfigException:
@@ -51,7 +53,7 @@ def ready_condition(old_status, ok, reason, message):
     now = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     old = next(
         (c for c in old_status.get("conditions", []) 
-         if c.get("type") == "Ready"), 
+         if c.get("type") == "Ready"),
          None,
         )
     since = old["lastTransitionTime"] if old and old.get("status") == new else now
@@ -63,7 +65,7 @@ def ready_condition(old_status, ok, reason, message):
         "message": message,
     }
 
-def reconcile_and_report(name, uid, spec, meta, status, patch, logger):
+def reconcile_and_report(name, uid, spec, meta, status, body, patch, logger):
     try:
         reconcile(name, uid, spec, logger)
     except DynamicApiError as e:
@@ -72,31 +74,40 @@ def reconcile_and_report(name, uid, spec, meta, status, patch, logger):
     else:
         ready, desired = deployment_replicas(name, spec)
         if ready >= desired:
-            cond = ready_condition(status, True, " AllReplicasReady", f"{ready}/{desired} replicas ready")
+            cond = ready_condition(status, True, "AllReplicasReady", f"{ready}/{desired} replicas ready")
         else:
             cond = ready_condition(status, False, "ReplicasNotReady", f"{ready}/{desired} replicas ready")
     patch.status["conditions"] = [cond]
     patch.status["observedGeneration"] = meta.get("generation")
 
+    old_ready = next(
+        (c.get("status") for c in (status or {}).get("conditions", []) 
+         if c.get("type") == "Ready"),
+        None,
+    )
+    if cond["status"] != old_ready:
+        event_type = "Normal" if cond["status"] == "True" else "Warning"
+        kopf.event(body, type=event_type, reason=cond["reason"], message=cond["message"])
+
 
 @kopf.on.create(GROUP, VERSION, "tenants")
-def on_create(name, uid, spec, meta, status, patch, logger, **_):
-    reconcile_and_report(name, uid, spec, meta, status, patch, logger)
+def on_create(name, uid, spec, meta, status, body, patch, logger, **_):
+    reconcile_and_report(name, uid, spec, meta, status, body, patch, logger)
 
 
 @kopf.on.update(GROUP, VERSION, "tenants", field="spec")
-def on_update(name, uid, spec, meta, status, patch, logger, **_):
-    reconcile_and_report(name, uid, spec, meta, status, patch, logger)
+def on_update(name, uid, spec, meta, status, body, patch, logger, **_):
+    reconcile_and_report(name, uid, spec, meta, status, body,patch, logger)
 
 
 @kopf.on.resume(GROUP, VERSION, "tenants")
-def on_resume(name, uid, spec, meta, status, patch, logger, **_):
-    reconcile_and_report(name, uid, spec, meta, status, patch, logger)
+def on_resume(name, uid, spec, meta, status, body, patch, logger, **_):
+    reconcile_and_report(name, uid, spec, meta, status, body, patch, logger)
 
 
 @kopf.timer(GROUP, VERSION, "tenants", interval=30, initial_delay=30)
-def on_timer(name, uid, spec, meta, status, patch, logger, **_):
-    reconcile_and_report(name, uid, spec, meta, status, patch, logger)
+def on_timer(name, uid, spec, meta, status, body, patch, logger, **_):
+    reconcile_and_report(name, uid, spec, meta, status, body, patch, logger)
 
 
 @kopf.on.event(
@@ -116,5 +127,7 @@ def on_policy_event(event, logger, **_):
         return
     if obj.metadata.deletionTimestamp:
         return
-    logger.warning(f"NetworkPolicy {policy['metadata']['name']} was deleted, restoring tenant {tenant}")
+    message = f"NetworkPolicy {policy['metadata']['name']} was deleted; restoring it"
+    logger.warning(message)
+    kopf.event(obj.to_dict(), type="Warning", reason="NetworkPolicyDeleted", message=message)
     reconcile(tenant, obj.metadata.uid, obj.to_dict()["spec"], logger)  
